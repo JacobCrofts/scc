@@ -91,6 +91,9 @@ var Exclude = []string{}
 // CountAs is a rule for mapping known or new extensions to other rules
 var CountAs = ""
 
+// RemapAs is a rule for mapping a language based on strings found in the first 1000 bytes
+var RemapAs = ""
+
 // Format sets the output format of the formatter
 var Format = ""
 
