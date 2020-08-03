@@ -678,10 +678,14 @@ func processFile(job *FileJob) bool {
 
 	contents := job.Content
 
+	fmt.Println(job.Filename, job.Language, job.PossibleLanguages)
+
 	// Needs to always run to ensure the language is set
 	job.Language = DetermineLanguage(job.Filename, job.Language, job.PossibleLanguages, job.Content)
 
-	// If the type is #! we should check to see if we can identify
+
+	// If the type is #! we should check to see if we can identify it as being one
+	// or if there is a RemapAs in place, we check for that
 	if job.Language == SheBang {
 		cutoff := 200
 
@@ -695,8 +699,10 @@ func processFile(job *FileJob) bool {
 			if Verbose {
 				printWarn(fmt.Sprintf("unable to determine #! language for %s", job.Location))
 			}
+
 			return false
 		}
+
 		if Verbose {
 			printWarn(fmt.Sprintf("detected #! %s for %s", lang, job.Location))
 		}

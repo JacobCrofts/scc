@@ -164,6 +164,7 @@ func DetermineLanguage(filename string, fallbackLanguage string, possibleLanguag
 
 	startTime := makeTimestampNano()
 
+	// We only check the first chunk of the file upto a limit because we don't want to spend too much time in this
 	var toCheck string
 	if len(content) > 20000 {
 		toCheck = string(content)[:20000]
@@ -171,7 +172,7 @@ func DetermineLanguage(filename string, fallbackLanguage string, possibleLanguag
 		toCheck = string(content)
 	}
 
-	toSort := []languageGuess{}
+	var toSort []languageGuess
 	for _, lan := range possibleLanguages {
 		LanguageFeaturesMutex.Lock()
 		langFeatures := LanguageFeatures[lan]
@@ -187,6 +188,7 @@ func DetermineLanguage(filename string, fallbackLanguage string, possibleLanguag
 		toSort = append(toSort, languageGuess{Name: lan, Count: count})
 	}
 
+	// After getting the counts for each language, sort so we get the one that's the best match
 	sort.Slice(toSort, func(i, j int) bool {
 		if toSort[i].Count == toSort[j].Count {
 			return strings.Compare(toSort[i].Name, toSort[j].Name) < 0
