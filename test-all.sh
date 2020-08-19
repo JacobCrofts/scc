@@ -119,7 +119,7 @@ else
     exit
 fi
 
-if ./scc --avg-wage 10000 --binary --by-file --no-cocomo --debug --exclude-dir .git -f tabular -i go -c -d -M something -s name -w processor > /dev/null ; then
+if ./scc --avg-wage 10000 --binary --by-file --no-cocomo --no-size --size-unit si --debug --exclude-dir .git -f tabular -i go -c -d -M something -s name -w processor > /dev/null ; then
     echo -e "${GREEN}PASSED multiple options test"
 else
     echo -e "${RED}======================================================="
@@ -566,8 +566,118 @@ else
     exit
 fi
 
+if ./scc -f csv | grep -q "Bytes"; then
+    echo -e "${GREEN}PASSED csv bytes check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED csv bytes check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if ./scc -f html | grep -q "Bytes"; then
+    echo -e "${GREEN}PASSED html bytes check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED html bytes check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if ./scc -f json | grep -q "Bytes"; then
+    echo -e "${GREEN}PASSED json bytes check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED json bytes check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if ./scc | grep -q "megabytes"; then
+    echo -e "${GREEN}PASSED bytes check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED bytes check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if ./scc --format-multi "tabular:stdout,html:stdout,csv:stdout" | grep -q "Language,Location"; then
+    echo -e "${GREEN}PASSED format multi check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED format multi check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if ./scc --format-multi "tabular:stdout,html:stdout,csv:stdout" | grep -q "meta charset"; then
+    echo -e "${GREEN}PASSED format multi check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED format multi check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+./scc --format-multi "tabular:output.tab,wide:output.wide,json:output.json,csv:output.csv,cloc-yaml:output.yaml,html:output.html,html-table:output.html2"
+
+if test -f output.tab; then
+    echo -e "${GREEN}PASSED output.tab check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED output.tab check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if test -f output.wide; then
+    echo -e "${GREEN}PASSED output.wide check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED output.wide check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if test -f output.json; then
+    echo -e "${GREEN}PASSED output.json check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED output.json check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if test -f output.yaml; then
+    echo -e "${GREEN}PASSED output.yaml check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED output.yaml check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if test -f output.html; then
+    echo -e "${GREEN}PASSED output.html check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED output.html check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
+if test -f output.html2; then
+    echo -e "${GREEN}PASSED output.html2 check"
+else
+    echo -e "${RED}======================================================="
+    echo -e "FAILED output.html2 check"
+    echo -e "=======================================================${NC}"
+    exit
+fi
+
 # Try out specific languages
-for i in 'Bosque ' 'Flow9 ' 'Bitbucket Pipeline ' 'Docker ignore ' 'Q# ' 'Futhark ' 'Alloy ' 'Wren ' 'Monkey C ' 'Alchemist ' 'Luna ' 'ignore ' 'XML Schema ' 'Web Services' 'Go ' 'Java ' 'Boo ' 'License ' 'BASH ' 'C Shell ' 'Korn Shell ' 'Makefile ' 'Shell ' 'Zsh ' 'Rakefile ' 'Gemfile ' 'Dockerfile ' 'Yarn ' 'Sieve ' 'F# ' 'Elm ' 'Terraform ' 'Clojure ' 'C# ' 'LLVM IR '
+for i in 'Bosque ' 'Flow9 ' 'Bitbucket Pipeline ' 'Docker ignore ' 'Q# ' 'Futhark ' 'Alloy ' 'Wren ' 'Monkey C ' 'Alchemist ' 'Luna ' 'ignore ' 'XML Schema ' 'Web Services' 'Go ' 'Java ' 'Boo ' 'License ' 'BASH ' 'C Shell ' 'Korn Shell ' 'Makefile ' 'Shell ' 'Zsh ' 'Rakefile ' 'Gemfile ' 'Dockerfile ' 'Yarn ' 'Sieve ' 'F# ' 'Elm ' 'Terraform ' 'Clojure ' 'C# ' 'LLVM IR ' 'HAML '
 do
     if ./scc "examples/language/" | grep -q "$i "; then
         echo -e "${GREEN}PASSED $i Language Check"
@@ -583,7 +693,7 @@ echo -e  "${NC}Checking compile targets..."
 
 echo "   darwin..."
 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w"
-GOOS=darwin GOARCH=386 go build -ldflags="-s -w"
+
 echo "   windows..."
 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w"
 GOOS=windows GOARCH=386 go build -ldflags="-s -w"
@@ -598,6 +708,15 @@ rm ./ignored.xml
 rm .tmp_scc_yaml
 rm ./examples/ignore/gitignorefile.txt
 rm ./examples/ignore/ignorefile.txt
+
+rm ./output.tab
+rm ./output.wide
+rm ./output.json
+rm ./output.csv
+rm ./output.yaml
+rm ./output.html
+rm ./output.html2
+
 
 echo -e "${GREEN}================================================="
 echo -e "ALL TESTS PASSED"

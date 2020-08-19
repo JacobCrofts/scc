@@ -191,6 +191,11 @@ func codeState(
 	langFeatures LanguageFeature,
 	digest *hash.Hash,
 ) (int, int64, []byte, [][]byte, bool) {
+	// Hacky fix to https://github.com/boyter/scc/issues/181
+	if endPoint > len(fileJob.Content) {
+		endPoint--
+	}
+
 	for i := index; i < endPoint; i++ {
 		curByte := fileJob.Content[i]
 		index = i
@@ -682,7 +687,6 @@ func processFile(job *FileJob) bool {
 
 	// Needs to always run to ensure the language is set
 	job.Language = DetermineLanguage(job.Filename, job.Language, job.PossibleLanguages, job.Content)
-
 
 	// If the type is #! we should check to see if we can identify it as being one
 	// or if there is a RemapAs in place, we check for that

@@ -15,7 +15,7 @@ import (
 )
 
 // Version indicates the version of the application
-var Version = "2.12.0"
+var Version = "2.13.0 (beta)"
 
 // Flags set via the CLI which control how the output is displayed
 
@@ -70,6 +70,12 @@ var More = false
 // Cocomo toggles the COCOMO calculation
 var Cocomo = false
 
+// Size toggles the Size calculation
+var Size = false
+
+// SizeUnit determines what size calculation is used for megabytes
+var SizeUnit = "si"
+
 // Ci indicates if running inside a CI so to disable box drawing characters
 var Ci = false
 
@@ -96,6 +102,9 @@ var RemapAs = ""
 
 // Format sets the output format of the formatter
 var Format = ""
+
+// FormatMulti is a rule for defining multiple output formats
+var FormatMulti = ""
 
 // FileOutput sets the file that output should be written to
 var FileOutput = ""

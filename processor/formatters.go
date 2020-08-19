@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
 	"sort"
@@ -195,16 +196,8 @@ func toClocYAML(input chan *FileJob) string {
 func toJSON(input chan *FileJob) string {
 	startTime := makeTimestampMilli()
 	languages := map[string]LanguageSummary{}
-	var sumFiles, sumLines, sumCode, sumComment, sumBlank, sumComplexity int64 = 0, 0, 0, 0, 0, 0
 
 	for res := range input {
-		sumFiles++
-		sumLines += res.Lines
-		sumCode += res.Code
-		sumComment += res.Comment
-		sumBlank += res.Blank
-		sumComplexity += res.Complexity
-
 		_, ok := languages[res.Language]
 
 		if !ok {
@@ -222,6 +215,7 @@ func toJSON(input chan *FileJob) string {
 				Complexity: res.Complexity,
 				Count:      1,
 				Files:      files,
+				Bytes:      res.Bytes,
 			}
 		} else {
 			tmp := languages[res.Language]
@@ -239,6 +233,7 @@ func toJSON(input chan *FileJob) string {
 				Complexity: tmp.Complexity + res.Complexity,
 				Count:      tmp.Count + 1,
 				Files:      files,
+				Bytes:      res.Bytes + tmp.Bytes,
 			}
 		}
 	}
@@ -268,7 +263,8 @@ func toCSV(input chan *FileJob) string {
 		"Code",
 		"Comments",
 		"Blanks",
-		"Complexity"},
+		"Complexity",
+		"Bytes"},
 	}
 
 	for result := range input {
@@ -280,7 +276,8 @@ func toCSV(input chan *FileJob) string {
 			fmt.Sprint(result.Code),
 			fmt.Sprint(result.Comment),
 			fmt.Sprint(result.Blank),
-			fmt.Sprint(result.Complexity)})
+			fmt.Sprint(result.Complexity),
+			fmt.Sprint(result.Bytes)})
 	}
 
 	b := &bytes.Buffer{}
@@ -299,7 +296,7 @@ func toHtml(input chan *FileJob) string {
 
 func toHtmlTable(input chan *FileJob) string {
 	languages := map[string]LanguageSummary{}
-	var sumFiles, sumLines, sumCode, sumComment, sumBlank, sumComplexity int64 = 0, 0, 0, 0, 0, 0
+	var sumFiles, sumLines, sumCode, sumComment, sumBlank, sumComplexity, sumBytes int64 = 0, 0, 0, 0, 0, 0, 0
 
 	for res := range input {
 		sumFiles++
@@ -308,6 +305,7 @@ func toHtmlTable(input chan *FileJob) string {
 		sumComment += res.Comment
 		sumBlank += res.Blank
 		sumComplexity += res.Complexity
+		sumBytes += res.Bytes
 
 		_, ok := languages[res.Language]
 
@@ -324,6 +322,7 @@ func toHtmlTable(input chan *FileJob) string {
 				Complexity: res.Complexity,
 				Count:      1,
 				Files:      files,
+				Bytes:      res.Bytes,
 			}
 		} else {
 			tmp := languages[res.Language]
@@ -338,6 +337,7 @@ func toHtmlTable(input chan *FileJob) string {
 				Complexity: tmp.Complexity + res.Complexity,
 				Count:      tmp.Count + 1,
 				Files:      files,
+				Bytes:      tmp.Bytes + res.Bytes,
 			}
 		}
 	}
@@ -360,6 +360,7 @@ func toHtmlTable(input chan *FileJob) string {
 		<th>Comment</th>
 		<th>Code</th>
 		<th>Complexity</th>
+		<th>Bytes</th>
 	</tr></thead>
 	<tbody>`)
 
@@ -372,7 +373,8 @@ func toHtmlTable(input chan *FileJob) string {
 		<th>%d</th>
 		<th>%d</th>
 		<th>%d</th>
-	</tr>`, r.Name, len(r.Files), r.Lines, r.Blank, r.Comment, r.Code, r.Complexity))
+		<th>%d</th>
+	</tr>`, r.Name, len(r.Files), r.Lines, r.Blank, r.Comment, r.Code, r.Complexity, r.Bytes))
 
 		if Files {
 			sortSummaryFiles(&r)
@@ -386,7 +388,8 @@ func toHtmlTable(input chan *FileJob) string {
 		<td>%d</td>
 		<td>%d</td>
 		<td>%d</td>
-	</tr>`, res.Location, res.Lines, res.Blank, res.Comment, res.Code, res.Complexity))
+	    <td>%d</td>
+	</tr>`, res.Location, res.Lines, res.Blank, res.Comment, res.Code, res.Complexity, res.Bytes))
 			}
 		}
 
@@ -401,13 +404,18 @@ func toHtmlTable(input chan *FileJob) string {
 		<th>%d</th>
 		<th>%d</th>
 		<th>%d</th>
+    	<th>%d</th>
 	</tr></tfoot>
-	</table>`, sumFiles, sumLines, sumBlank, sumComment, sumCode, sumComplexity))
+	</table>`, sumFiles, sumLines, sumBlank, sumComment, sumCode, sumComplexity, sumBytes))
 
 	return str.String()
 }
 
 func fileSummarize(input chan *FileJob) string {
+	if FormatMulti != "" {
+		return fileSummarizeMulti(input)
+	}
+
 	switch {
 	case More || strings.ToLower(Format) == "wide":
 		return fileSummarizeLong(input)
@@ -424,6 +432,64 @@ func fileSummarize(input chan *FileJob) string {
 	}
 
 	return fileSummarizeShort(input)
+}
+
+// Deals with the case of CI/CD where you might want to run with multiple outputs
+// both to files and to stdout. Not the most efficient way to do it in terms of memory
+// but seeing as the files are just summaries by this point it shouldn't be too bad
+func fileSummarizeMulti(input chan *FileJob) string {
+	// collect all the results
+	var results []*FileJob
+	for res := range input {
+		results = append(results, res)
+	}
+
+	var str strings.Builder
+
+	// for each output pump the results into
+	for _, s := range strings.Split(FormatMulti, ",") {
+		t := strings.Split(s, ":")
+		if len(t) == 2 {
+			i := make(chan *FileJob, len(results))
+
+			for _, r := range results {
+				i <- r
+			}
+			close(i)
+
+			var val = ""
+
+			switch t[0] {
+			case "tabular":
+				val = fileSummarizeShort(i)
+			case "wide":
+				val = fileSummarizeLong(i)
+			case "json":
+				val = toJSON(i)
+			case "cloc-yaml":
+				val = toClocYAML(i)
+			case "cloc-yml":
+				val = toClocYAML(i)
+			case "csv":
+				val = toCSV(i)
+			case "html":
+				val = toHtml(i)
+			case "html-table":
+				val = toHtmlTable(i)
+			}
+
+			if t[1] == "stdout" {
+				// return details appended
+				str.WriteString(val)
+				str.WriteString("\n")
+			} else {
+				_ = ioutil.WriteFile(t[1], []byte(val), 0600)
+			}
+
+		}
+	}
+
+	return str.String()
 }
 
 func fileSummarizeLong(input chan *FileJob) string {
@@ -602,7 +668,7 @@ func fileSummarizeShort(input chan *FileJob) string {
 	}
 
 	languages := map[string]LanguageSummary{}
-	var sumFiles, sumLines, sumCode, sumComment, sumBlank, sumComplexity int64 = 0, 0, 0, 0, 0, 0
+	var sumFiles, sumLines, sumCode, sumComment, sumBlank, sumComplexity, sumBytes int64 = 0, 0, 0, 0, 0, 0, 0
 
 	for res := range input {
 		sumFiles++
@@ -611,6 +677,7 @@ func fileSummarizeShort(input chan *FileJob) string {
 		sumComment += res.Comment
 		sumBlank += res.Blank
 		sumComplexity += res.Complexity
+		sumBytes += res.Bytes
 
 		_, ok := languages[res.Language]
 
@@ -701,6 +768,7 @@ func fileSummarizeShort(input chan *FileJob) string {
 	str.WriteString(getTabularShortBreak())
 
 	calculateCocomo(sumCode, &str)
+	calculateSize(sumBytes, &str)
 	return str.String()
 }
 
@@ -729,6 +797,73 @@ func calculateCocomo(sumCode int64, str *strings.Builder) {
 		}
 		str.WriteString(getTabularShortBreak())
 	}
+}
+
+func calculateSize(sumBytes int64, str *strings.Builder) {
+	if !Size {
+		var size float64
+
+		switch strings.ToLower(SizeUnit) {
+		case "binary":
+			size = float64(sumBytes) / 1_048_576
+		case "mixed":
+			size = float64(sumBytes) / 1_024_000
+		case "xkcd-kb":
+			str.WriteString("1000 bytes during leap years, 1024 otherwise\n")
+			tim := time.Now()
+			if isLeapYear(tim.Year()) {
+				size = float64(sumBytes) / 1_000_000
+			}
+		case "xkcd-kelly":
+			str.WriteString("compromise between 1000 and 1024 bytes\n")
+			size = float64(sumBytes) / (1012 * 1012)
+		case "xkcd-imaginary":
+			str.WriteString("used in quantum computing\n")
+			str.WriteString(fmt.Sprintf("Processed %d bytes, %s megabytes (%s)\n", sumBytes, `¯\_(ツ)_/¯`, strings.ToUpper(SizeUnit)))
+		case "xkcd-intel":
+			str.WriteString("calculated on pentium F.P.U.\n")
+			size = float64(sumBytes) / (1023.937528 * 1023.937528)
+		case "xkcd-drive":
+			str.WriteString("shrinks by 4 bytes every year for marketing reasons\n")
+			tim := time.Now()
+
+			s := 908 - ((tim.Year() - 2013) * 4) // comic starts with 908 in 2013 hence hardcoded values
+			s = min(s, 908)                      // just in case the clock is stupidly set
+
+			size = float64(sumBytes) / float64(s*s)
+		case "xkcd-bakers":
+			str.WriteString("9 bits to the byte since you're such a good customer\n")
+			size = float64(sumBytes) / (1152 * 1152)
+		default:
+			// SI value of 1000 bytes
+			size = float64(sumBytes) / 1_000_000
+			SizeUnit = "SI"
+		}
+
+		if strings.ToLower(SizeUnit) != "xkcd-imaginary" {
+			str.WriteString(fmt.Sprintf("Processed %d bytes, %.3f megabytes (%s)\n", sumBytes, size, strings.ToUpper(SizeUnit)))
+		}
+
+		str.WriteString(getTabularShortBreak())
+	}
+}
+
+func isLeapYear(year int) bool {
+	leapFlag := false
+	if year%4 == 0 {
+		if year%100 == 0 {
+			if year%400 == 0 {
+				leapFlag = true
+			} else {
+				leapFlag = false
+			}
+		} else {
+			leapFlag = true
+		}
+	} else {
+		leapFlag = false
+	}
+	return leapFlag
 }
 
 func sortLanguageSummary(language []LanguageSummary) []LanguageSummary {

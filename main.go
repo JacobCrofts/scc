@@ -115,6 +115,18 @@ func main() {
 		false,
 		"remove COCOMO calculation output",
 	)
+	flags.BoolVar(
+		&processor.Size,
+		"no-size",
+		false,
+		"remove size calculation output",
+	)
+	flags.StringVar(
+		&processor.SizeUnit,
+		"size-unit",
+		"si",
+		"set size unit [si, binary, mixed, xkcd-kb, xkcd-kelly, xkcd-imaginary, xkcd-intel, xkcd-drive, xkcd-bakers]",
+	)
 	flags.BoolVarP(
 		&processor.Complexity,
 		"no-complexity",
@@ -248,10 +260,17 @@ func main() {
 		"count extension as language [e.g. jsp:htm,chead:\"C Header\" maps extension jsp to html and chead to C Header]",
 	)
 	flags.StringVar(
+
 		&processor.RemapAs,
 		"remap",
 		"",
 		"",
+	)
+	flags.StringVar(
+		&processor.FormatMulti,
+		"format-multi",
+		"",
+		"have multiple format output overriding --format [e.g. tabular:stdout,csv:file.csv,json:file.json]",
 	)
 
 	if err := rootCmd.Execute(); err != nil {
